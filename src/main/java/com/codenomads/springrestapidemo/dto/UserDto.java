@@ -1,5 +1,6 @@
 package com.codenomads.springrestapidemo.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +24,7 @@ public class UserDto {
     @Size(min = 3, max = 30)
     private String name;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private Date birthDate;
 
