@@ -1,67 +1,48 @@
 package com.codenomads.springrestapidemo.service;
 
-import com.codenomads.springrestapidemo.controller.error.NotFoundException;
-import com.codenomads.springrestapidemo.dto.UserDto;
-import com.codenomads.springrestapidemo.dto.UserDtoMapper;
 import com.codenomads.springrestapidemo.model.User;
 import com.codenomads.springrestapidemo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-import javax.transaction.Transactional;
-import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
-    private final UserDtoMapper userDtoMapper;
 
-    public UserDto getUserById(long userId) {
+    public User getUserById(UUID userId) {
         return userRepository.findById(userId)
-                .map(userDtoMapper::toDto)
-                .orElseThrow(() -> new NotFoundException(String.format("User id '%d' does not exist", userId)));
+                .orElseThrow(() -> createUserNotFoundException(userId));
     }
 
-    public Page<UserDto> getAllUsersByPage(int pageNumber, int pageSize) {
-        Page<User> userPage = userRepository.findAll(PageRequest.of(pageNumber, pageSize));
-        List<UserDto> userDtos = userPage.getContent().stream()
-                .map(userDtoMapper::toDto)
-                .toList();
-        return new PageImpl<>(userDtos, userPage.getPageable(), userPage.getTotalPages());
+    public Page<User> getAllUsersByPage(Pageable pageable) {
+        return userRepository.findAll(pageable);
     }
 
-    public UserDto createUser(UserDto userDto) {
-        User user = userDtoMapper.toUser(userDto);
-        User savedUser = userRepository.save(user);
-        return userDtoMapper.toDto(savedUser);
+    public User createUser(User user) {
+        return userRepository.save(user);
     }
 
-    @Transactional
-    public UserDto createOrUpdateUser(UserDto userDto) {
-        return userRepository.findById(userDto.getId())
-                .map(user -> updateNameAndBirthDate(user, userDto))
-                .map(userDtoMapper::toDto)
-                .orElseGet(() -> createUser(userDto));
-    }
-
-    private User updateNameAndBirthDate(User user, UserDto userDto) {
-        user.setName(userDto.getName());
-        user.setBirthDate(userDto.getBirthDate());
-        return user;
-    }
-
-    public void deleteUserById(long userId) {
+    public void deleteUserById(UUID userId) {
         userRepository.findById(userId)
                 .ifPresentOrElse(
                         userRepository::delete,
                         () -> {
-                            throw new NotFoundException(String.format("User id '%d' does not exist", userId));
+                            throw createUserNotFoundException(userId);
                         }
                 );
+    }
+
+    private ResponseStatusException createUserNotFoundException(UUID userId) {
+        return new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "User with id '%s' could not be found.".formatted(userId));
     }
 }

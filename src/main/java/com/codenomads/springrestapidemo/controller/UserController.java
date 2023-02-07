@@ -1,15 +1,17 @@
 package com.codenomads.springrestapidemo.controller;
 
 import com.codenomads.springrestapidemo.dto.UserDto;
+import com.codenomads.springrestapidemo.dto.UserDtoMapper;
+import com.codenomads.springrestapidemo.model.User;
 import com.codenomads.springrestapidemo.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import javax.validation.constraints.Max;
-import javax.validation.constraints.Positive;
+import java.util.UUID;
 
 @RestController
 @RequestMapping(value = "users")
@@ -17,41 +19,39 @@ import javax.validation.constraints.Positive;
 public class UserController {
 
     private final UserService userService;
+    private final UserDtoMapper userDtoMapper;
 
     @GetMapping("{userId}")
-    public UserDto getUserById(@PathVariable @Positive long userId) {
-        return userService.getUserById(userId);
+    public UserDto getUserById(@PathVariable UUID userId) {
+        User user = userService.getUserById(userId);
+        return userDtoMapper.toDto(user);
     }
 
     @GetMapping
-    public Page<UserDto> getAllUsersByPage(
-            @RequestParam(defaultValue = "1", required = false)
-            @Positive
-            @Max(10000)
-            int pageNumber,
-            @RequestParam(defaultValue = "50", required = false)
-            @Positive
-            @Max(500)
-            int pageSize
-    ) {
-        return userService.getAllUsersByPage(pageNumber - 1, pageSize);
+    public Page<UserDto> getAllUsersByPage(@PageableDefault(size = 50) Pageable pageable) {
+        return userService.getAllUsersByPage(pageable)
+                .map(userDtoMapper::toDto);
     }
 
     @PostMapping
-    public UserDto createUser(
-            @RequestBody @Valid UserDto userDto) {
-        return userService.createUser(userDto);
+    public UserDto createUser(@RequestBody @Valid UserDto userDto) {
+        return saveUser(userDto);
     }
 
     @PutMapping
     public UserDto createOrUpdateUser(@RequestBody @Valid UserDto userDto) {
-        return userService.createOrUpdateUser(userDto);
+        return saveUser(userDto);
+    }
+
+    private UserDto saveUser(UserDto userDto) {
+        User userToCreate = userDtoMapper.toUser(userDto);
+        User savedUser = userService.createUser(userToCreate);
+        return userDtoMapper.toDto(savedUser);
     }
 
     @DeleteMapping("{userId}")
-    public ResponseEntity<Void> deleteUser(@PathVariable @Positive long userId) {
+    public void deleteUser(@PathVariable UUID userId) {
         userService.deleteUserById(userId);
-        return ResponseEntity.noContent().build();
     }
 
 }

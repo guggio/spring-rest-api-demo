@@ -20,6 +20,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import javax.transaction.Transactional;
 import java.util.Date;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -32,6 +33,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class UserControllerTest {
 
     private static final String USERS_PATH = "/users";
+    public static final String USER_NOT_FOUND_TEXT_FORMAT = "User with id '%s' could not be found.";
 
     @Autowired
     private MockMvc mockMvc;
@@ -79,12 +81,14 @@ class UserControllerTest {
 
         User savedUser = userRepository.save(user);
         assertTrue(userRepository.existsById(savedUser.getId()));
-        long nonExistentId = savedUser.getId() + 100;
+        UUID nonExistentId = UUID.randomUUID();
 
-        mockMvc.perform(get(USERS_PATH + "/" + nonExistentId)
+        ResultActions resultActions = mockMvc.perform(get(USERS_PATH + "/" + nonExistentId)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
 
+        assertEquals(USER_NOT_FOUND_TEXT_FORMAT.formatted(nonExistentId),
+                resultActions.andReturn().getResponse().getErrorMessage());
     }
 
     @Test
@@ -154,7 +158,7 @@ class UserControllerTest {
 
     @Test
     void shouldCreateNewUserWithPutCallIfIdNotExistent() throws Exception {
-        long id = 55L;
+        UUID id = UUID.randomUUID();
         String name = "Hans";
         Date birthDate = dateParser.parse("1993-11-02");
 
@@ -196,7 +200,7 @@ class UserControllerTest {
 
         mockMvc.perform(delete(USERS_PATH + "/" + savedUser.getId())
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isNoContent());
+                .andExpect(MockMvcResultMatchers.status().isOk());
 
         assertFalse(userRepository.existsById(savedUser.getId()));
     }
@@ -212,11 +216,13 @@ class UserControllerTest {
 
         User savedUser = userRepository.save(user);
         assertTrue(userRepository.existsById(savedUser.getId()));
-        long nonExistentId = savedUser.getId() + 100;
+        UUID nonExistentId = UUID.randomUUID();
 
-        mockMvc.perform(delete(USERS_PATH + "/" + nonExistentId)
+        ResultActions resultActions = mockMvc.perform(delete(USERS_PATH + "/" + nonExistentId)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
 
+        assertEquals(USER_NOT_FOUND_TEXT_FORMAT.formatted(nonExistentId),
+                resultActions.andReturn().getResponse().getErrorMessage());
     }
 }

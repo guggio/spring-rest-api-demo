@@ -9,6 +9,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.Size;
 import java.util.Date;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -16,7 +17,7 @@ import java.util.Date;
 @Builder
 public class UserDto {
 
-    private Long id;
+    private UUID id;
 
     @NotEmpty
     @Size(min = 3, max = 30)
