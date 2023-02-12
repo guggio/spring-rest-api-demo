@@ -7,10 +7,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 
+import javax.validation.constraints.Email;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.Size;
-import java.util.Date;
-import java.util.UUID;
+import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
@@ -18,14 +18,16 @@ import java.util.UUID;
 @Builder
 public class UserDto {
 
-    private UUID id;
-
     @NotEmpty
     @Size(min = 3, max = 30)
     private String name;
 
-    @JsonFormat(pattern = "yyyy-MM-dd")
+    @NotEmpty
+    @Email(regexp = "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")
+    private String email;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-    private Date birthDate;
+    private LocalDate birthDate;
 
 }

@@ -4,7 +4,6 @@ import com.codenomads.springrestapidemo.SpringRestApiDemoApplication;
 import com.codenomads.springrestapidemo.dto.UserDto;
 import com.codenomads.springrestapidemo.model.User;
 import com.codenomads.springrestapidemo.repository.UserRepository;
-import com.codenomads.springrestapidemo.utils.DateParser;
 import com.codenomads.springrestapidemo.utils.JsonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,8 +18,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import javax.transaction.Transactional;
-import java.util.Date;
-import java.util.UUID;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -33,7 +31,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class UserControllerTest {
 
     private static final String USERS_PATH = "/users";
-    public static final String USER_NOT_FOUND_TEXT_FORMAT = "User with id '%s' could not be found.";
+    public static final String USER_NOT_FOUND_TEXT_FORMAT = "User with email '%s' could not be found.";
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,61 +40,64 @@ class UserControllerTest {
     private UserRepository userRepository;
 
     @Autowired
-    private DateParser dateParser;
-
-    @Autowired
     private JsonUtils jsonUtils;
 
     @Test
-    void shouldRetrieveUserForExistingId() throws Exception {
+    void shouldRetrieveUserForExistingEmail() throws Exception {
         String name = "Hans";
-        Date birthDate = dateParser.parse("1993-11-02");
+        String email = "hans@gmail.com";
+        LocalDate birthDate = LocalDate.parse("1993-11-02");
         User user = User.builder()
                 .name(name)
+                .email(email)
                 .birthDate(birthDate)
                 .build();
 
         User savedUser = userRepository.save(user);
         assertTrue(userRepository.existsById(savedUser.getId()));
 
-        ResultActions resultActions = mockMvc.perform(get(USERS_PATH + "/" + savedUser.getId())
+        ResultActions resultActions = mockMvc.perform(get(USERS_PATH + "/" + email)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
         UserDto response = jsonUtils.deserializeResult(resultActions, UserDto.class);
 
-        assertEquals(savedUser.getId(), response.getId());
+        assertEquals(email, response.getEmail());
         assertEquals(name, response.getName());
         assertEquals(birthDate, response.getBirthDate());
     }
 
     @Test
-    void shouldNotRetrieveAnyUserForNonExistentId() throws Exception {
+    void shouldNotRetrieveAnyUserForNonExistentEmail() throws Exception {
         String name = "Hans";
-        Date birthDate = dateParser.parse("1993-11-02");
+        String email = "hans@gmail.com";
+        String nonExistentEmail = "hans69@gmail.com";
+        LocalDate birthDate = LocalDate.parse("1993-11-02");
         User user = User.builder()
                 .name(name)
+                .email(email)
                 .birthDate(birthDate)
                 .build();
 
         User savedUser = userRepository.save(user);
         assertTrue(userRepository.existsById(savedUser.getId()));
-        UUID nonExistentId = UUID.randomUUID();
 
-        ResultActions resultActions = mockMvc.perform(get(USERS_PATH + "/" + nonExistentId)
+        ResultActions resultActions = mockMvc.perform(get(USERS_PATH + "/" + nonExistentEmail)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
 
-        assertEquals(USER_NOT_FOUND_TEXT_FORMAT.formatted(nonExistentId),
+        assertEquals(USER_NOT_FOUND_TEXT_FORMAT.formatted(nonExistentEmail),
                 resultActions.andReturn().getResponse().getErrorMessage());
     }
 
     @Test
     void shouldCreateNewUserAndSaveToDatabase() throws Exception {
         String name = "Hans";
-        Date birthDate = dateParser.parse("1993-11-02");
+        String email = "hans@gmail.com";
+        LocalDate birthDate = LocalDate.parse("1993-11-02");
         UserDto request = UserDto.builder()
                 .name(name)
+                .email(email)
                 .birthDate(birthDate)
                 .build();
 
@@ -105,17 +106,18 @@ class UserControllerTest {
         ResultActions resultActions = mockMvc.perform(post(USERS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonUtils.asJsonString(request)))
-                .andExpect(MockMvcResultMatchers.status().isOk());
+                .andExpect(MockMvcResultMatchers.status().isCreated());
 
         UserDto response = jsonUtils.deserializeResult(resultActions, UserDto.class);
 
-        assertNotNull(response.getId());
+        assertEquals(email, response.getEmail());
         assertEquals(name, response.getName());
         assertEquals(birthDate, response.getBirthDate());
 
         assertEquals(1, userRepository.findAll().size());
-        User savedUser = userRepository.findById(response.getId())
+        User savedUser = userRepository.findByEmail(email)
                 .orElseThrow();
+        assertEquals(email, savedUser.getEmail());
         assertEquals(name, savedUser.getName());
         assertEquals(birthDate, savedUser.getBirthDate());
     }
@@ -123,10 +125,13 @@ class UserControllerTest {
     @Test
     void shouldModifyExistingUserWithPutCall() throws Exception {
         String name = "Hans";
+        String email = "hans@gmail.com";
         String modifiedName = "Maria";
-        Date birthDate = dateParser.parse("1993-11-02");
+        LocalDate birthDate = LocalDate.parse("1993-11-02");
+        LocalDate modifiedBirthDate = LocalDate.parse("1999-11-02");
         User user = User.builder()
                 .name(name)
+                .email(email)
                 .birthDate(birthDate)
                 .build();
 
@@ -135,9 +140,9 @@ class UserControllerTest {
         assertEquals(birthDate, savedUser.getBirthDate());
 
         UserDto request = UserDto.builder()
-                .id(savedUser.getId())
                 .name(modifiedName)
-                .birthDate(birthDate)
+                .email(email)
+                .birthDate(modifiedBirthDate)
                 .build();
 
         ResultActions resultActions = mockMvc.perform(put(USERS_PATH)
@@ -147,28 +152,30 @@ class UserControllerTest {
 
         UserDto response = jsonUtils.deserializeResult(resultActions, UserDto.class);
 
-        assertNotNull(response.getId());
+        assertEquals(email, response.getEmail());
         assertEquals(modifiedName, response.getName());
-        assertEquals(birthDate, response.getBirthDate());
+        assertEquals(modifiedBirthDate, response.getBirthDate());
 
-        User modifiedUser = userRepository.getReferenceById(response.getId());
+        User modifiedUser = userRepository.findByEmail(response.getEmail()).orElseThrow();
+        assertEquals(email, modifiedUser.getEmail());
         assertEquals(modifiedName, modifiedUser.getName());
-        assertEquals(birthDate, modifiedUser.getBirthDate());
+        assertEquals(modifiedBirthDate, modifiedUser.getBirthDate());
     }
 
     @Test
-    void shouldCreateNewUserWithPutCallIfIdNotExistent() throws Exception {
-        UUID id = UUID.randomUUID();
+    void shouldCreateNewUserWithPutCallIfEmailNotExistent() throws Exception {
         String name = "Hans";
-        Date birthDate = dateParser.parse("1993-11-02");
+        String email = "hans@gmail.com";
+        LocalDate birthDate = LocalDate.parse("1993-11-02");
 
-        assertFalse(userRepository.existsById(id));
+        assertTrue(userRepository.findByEmail(email).isEmpty());
 
         UserDto request = UserDto.builder()
-                .id(id)
                 .name(name)
+                .email(email)
                 .birthDate(birthDate)
                 .build();
+
 
         ResultActions resultActions = mockMvc.perform(put(USERS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -177,28 +184,30 @@ class UserControllerTest {
 
         UserDto response = jsonUtils.deserializeResult(resultActions, UserDto.class);
 
-        assertNotNull(response.getId());
+        assertEquals(email, response.getEmail());
         assertEquals(name, response.getName());
         assertEquals(birthDate, response.getBirthDate());
 
-        User savedUser = userRepository.getReferenceById(response.getId());
+        User savedUser = userRepository.findByEmail(response.getEmail()).orElseThrow();
         assertEquals(name, savedUser.getName());
         assertEquals(birthDate, savedUser.getBirthDate());
     }
 
     @Test
-    void shouldDeleteUserForExistingId() throws Exception {
+    void shouldDeleteUserForExistingEmail() throws Exception {
         String name = "Hans";
-        Date birthDate = dateParser.parse("1993-11-02");
+        String email = "hans@gmail.com";
+        LocalDate birthDate = LocalDate.parse("1993-11-02");
         User user = User.builder()
                 .name(name)
+                .email(email)
                 .birthDate(birthDate)
                 .build();
 
         User savedUser = userRepository.save(user);
         assertTrue(userRepository.existsById(savedUser.getId()));
 
-        mockMvc.perform(delete(USERS_PATH + "/" + savedUser.getId())
+        mockMvc.perform(delete(USERS_PATH + "/" + email)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
@@ -206,23 +215,26 @@ class UserControllerTest {
     }
 
     @Test
-    void shouldNotDeleteUserForNonExistentId() throws Exception {
+    void shouldNotDeleteUserForNonExistentEmail() throws Exception {
         String name = "Hans";
-        Date birthDate = dateParser.parse("1993-11-02");
+        String email = "hans@gmail.com";
+        LocalDate birthDate = LocalDate.parse("1993-11-02");
         User user = User.builder()
                 .name(name)
+                .email(email)
                 .birthDate(birthDate)
                 .build();
 
         User savedUser = userRepository.save(user);
         assertTrue(userRepository.existsById(savedUser.getId()));
-        UUID nonExistentId = UUID.randomUUID();
 
-        ResultActions resultActions = mockMvc.perform(delete(USERS_PATH + "/" + nonExistentId)
+        String nonExistentEmail = "hans69@gmail.com";
+
+        ResultActions resultActions = mockMvc.perform(delete(USERS_PATH + "/" + nonExistentEmail)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
 
-        assertEquals(USER_NOT_FOUND_TEXT_FORMAT.formatted(nonExistentId),
+        assertEquals(USER_NOT_FOUND_TEXT_FORMAT.formatted(nonExistentEmail),
                 resultActions.andReturn().getResponse().getErrorMessage());
     }
 }

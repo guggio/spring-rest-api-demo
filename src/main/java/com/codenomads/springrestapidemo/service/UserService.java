@@ -9,7 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.UUID;
+import javax.transaction.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -17,9 +17,9 @@ public class UserService {
 
     private final UserRepository userRepository;
 
-    public User getUserById(UUID userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> createUserNotFoundException(userId));
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> createUserNotFoundException(email));
     }
 
     public Page<User> getAllUsersByPage(Pageable pageable) {
@@ -30,19 +30,28 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public void deleteUserById(UUID userId) {
-        userRepository.findById(userId)
-                .ifPresentOrElse(
-                        userRepository::delete,
-                        () -> {
-                            throw createUserNotFoundException(userId);
-                        }
-                );
+    @Transactional
+    public User createOrUpdateUser(User user) {
+        return userRepository.findByEmail(user.getEmail())
+                .map(userToUpdate -> {
+                    userToUpdate.setName(user.getName());
+                    userToUpdate.setBirthDate(user.getBirthDate());
+                    return userToUpdate;
+                })
+                .orElseGet(() -> userRepository.save(user));
     }
 
-    private ResponseStatusException createUserNotFoundException(UUID userId) {
+    public void deleteUserByEmail(String email) {
+        userRepository.findByEmail(email)
+                .ifPresentOrElse(userRepository::delete,
+                        () -> {
+                            throw createUserNotFoundException(email);
+                        });
+    }
+
+    private ResponseStatusException createUserNotFoundException(String email) {
         return new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
-                "User with id '%s' could not be found.".formatted(userId));
+                "User with email '%s' could not be found.".formatted(email));
     }
 }
